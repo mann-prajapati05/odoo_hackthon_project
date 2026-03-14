@@ -1,9 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { queryClient } from '@/lib/queryClient'
 import { useAuthStore, useUIStore } from '@/store'
 import { useEffect } from 'react'
+import { authApi } from '@/api/auth'
+import { usersApi } from '@/api/users'
 
 // Layouts
 import { ShellLayout } from '@/components/layout/ShellLayout'
@@ -18,8 +20,10 @@ import ForgotPassword from '@/pages/ForgotPassword'
 import Dashboard from '@/pages/Dashboard'
 import ProductList from '@/pages/ProductList'
 import ProductDetail from '@/pages/ProductDetail'
+import ProductCreate from '@/pages/ProductCreate'
 import OperationListPage from '@/pages/OperationListPage'
 import OperationDetail from '@/pages/OperationDetail'
+import OperationCreate from '@/pages/OperationCreate'
 import MoveHistory from '@/pages/MoveHistory'
 import Warehouses from '@/pages/Warehouses'
 import Profile from '@/pages/Profile'
@@ -41,20 +45,27 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-// ⚠️ DEMO MODE — Remove this component once you connect the real backend
-function DemoAuthInitializer() {
-  const { isAuthenticated, setAuth } = useAuthStore()
+function SessionInitializer() {
+  const location = useLocation()
+  const { setAuth, clearAuth, isAuthenticated } = useAuthStore()
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/forgot-password'
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      setAuth('demo-token', {
-        id: 'demo-1',
-        name: 'Rohan Prajapati',
-        email: 'rohan@coreinventory.com',
-        role: 'admin',
-        createdAt: new Date().toISOString(),
-      })
+    if (isAuthenticated || isAuthPage) return
+
+    const restore = async () => {
+      try {
+        const refreshed = await authApi.refresh()
+        const me = await usersApi.me()
+        setAuth(refreshed.accessToken, me)
+      } catch {
+        clearAuth()
+      }
     }
-  }, [isAuthenticated, setAuth])
+
+    void restore()
+  }, [clearAuth, isAuthenticated, isAuthPage, setAuth])
+
   return null
 }
 
@@ -75,7 +86,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={0}>
         <BrowserRouter>
-          <DemoAuthInitializer />
+          <SessionInitializer />
           <DarkModeInitializer />
           <CommandPalette />
           <Toaster
@@ -114,6 +125,7 @@ function App() {
 
               {/* Products */}
               <Route path="/products" element={<ProductList />} />
+              <Route path="/products/new" element={<ProductCreate />} />
               <Route path="/products/:id" element={<ProductDetail />} />
 
               {/* Operations */}
@@ -121,11 +133,19 @@ function App() {
                 path="/operations/receipts"
                 element={<OperationListPage type="receipt" title="Receipts" newRoute="/operations/receipts/new" />}
               />
+              <Route
+                path="/operations/receipts/new"
+                element={<OperationCreate type="receipt" title="Receipts" listRoute="/operations/receipts" />}
+              />
               <Route path="/operations/receipts/:id" element={<OperationDetail />} />
 
               <Route
                 path="/operations/deliveries"
                 element={<OperationListPage type="delivery" title="Deliveries" newRoute="/operations/deliveries/new" />}
+              />
+              <Route
+                path="/operations/deliveries/new"
+                element={<OperationCreate type="delivery" title="Deliveries" listRoute="/operations/deliveries" />}
               />
               <Route path="/operations/deliveries/:id" element={<OperationDetail />} />
 
@@ -133,11 +153,19 @@ function App() {
                 path="/operations/transfers"
                 element={<OperationListPage type="transfer" title="Transfers" newRoute="/operations/transfers/new" />}
               />
+              <Route
+                path="/operations/transfers/new"
+                element={<OperationCreate type="transfer" title="Transfers" listRoute="/operations/transfers" />}
+              />
               <Route path="/operations/transfers/:id" element={<OperationDetail />} />
 
               <Route
                 path="/operations/adjustments"
                 element={<OperationListPage type="adjustment" title="Adjustments" newRoute="/operations/adjustments/new" />}
+              />
+              <Route
+                path="/operations/adjustments/new"
+                element={<OperationCreate type="adjustment" title="Adjustments" listRoute="/operations/adjustments" />}
               />
               <Route path="/operations/adjustments/:id" element={<OperationDetail />} />
 

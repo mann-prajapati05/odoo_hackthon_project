@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum OperationType {
+  RECEIPT
+  DELIVERY
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum OperationStatus {
+  DRAFT
+  WAITING
+  READY
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum AdjustmentType {
+  FULL_COUNT
+  SPOT_CHECK
+  DAMAGE_WRITEOFF
+  FOUND_STOCK
+}
+
+enum StockMoveDirection {
+  IN
+  OUT
+  INTERNAL
+  ADJUSTMENT
+}
+
+model User {
+  id                  String              @id @default(uuid())
+  name                String
+  email               String              @unique
+  passwordHash        String
+  role                Role                @default(STAFF)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  createdOperations   Operation[]         @relation("CreatedBy")
+  validatedOperations Operation[]         @relation("ValidatedBy")
+  stockMoves          StockMove[]
+  timelines           OperationTimeline[]
+}
+
+model Warehouse {
+  id             String      @id @default(uuid())
+  name           String
+  shortCode      String      @unique
+  address        String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  locations      Location[]
+  operations     Operation[]
+}
+
+model Location {
+  id             String      @id @default(uuid())
+  name           String
+  shortCode      String
+  warehouseId    String
+  parentId       String?
+  isVirtual      Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+
+  warehouse      Warehouse   @relation(fields: [warehouseId], references: [id])
+  parent         Location?   @relation("LocationTree", fields: [parentId], references: [id])
+  children       Location[]  @relation("LocationTree")
+  stockLevels    StockLevel[]
+  fromMoves      StockMove[] @relation("FromLocation")
+  toMoves        StockMove[] @relation("ToLocation")
+  operationLines OperationLine[]
+  operationsFrom Operation[] @relation("OperationFromLocation")
+  operationsTo   Operation[] @relation("OperationToLocation")
+
+  @@unique([shortCode, warehouseId])
+}
+
+model Category {
+  id             String      @id @default(uuid())
+  name           String
+  parentId       String?
+
+  parent         Category?   @relation("CategoryTree", fields: [parentId], references: [id])
+  children       Category[]  @relation("CategoryTree")
+  products       Product[]
+}
+
+model Product {
+  id             String      @id @default(uuid())
+  name           String
+  sku            String      @unique
+  categoryId     String?
+  uom            String
+  description    String?
+  imageUrl       String?
+  reorderEnabled Boolean     @default(false)
+  reorderMin     Float?
+  reorderQty     Float?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  category       Category?   @relation(fields: [categoryId], references: [id])
+  stockLevels    StockLevel[]
+  operationLines OperationLine[]
+  stockMoves     StockMove[]
+}
+
+model StockLevel {
+  id             String      @id @default(uuid())
+  productId      String
+  locationId     String
+  qtyOnHand      Float       @default(0)
+  qtyReserved    Float       @default(0)
+  updatedAt      DateTime    @updatedAt
+
+  product        Product     @relation(fields: [productId], references: [id])
+  location       Location    @relation(fields: [locationId], references: [id])
+
+  @@unique([productId, locationId])
+}
+
+model Operation {
+  id             String              @id @default(uuid())
+  refNumber      String              @unique
+  type           OperationType
+  status         OperationStatus     @default(DRAFT)
+  adjustmentType AdjustmentType?
+  warehouseId    String
+  fromLocationId String?
+  toLocationId   String?
+  supplier       String?
+  destination    String?
+  scheduledDate  DateTime?
+  notes          String?
+  lockedAt       DateTime?
+  createdById    String
+  validatedById  String?
+  validatedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id])
+  fromLocation   Location?           @relation("OperationFromLocation", fields: [fromLocationId], references: [id])
+  toLocation     Location?           @relation("OperationToLocation", fields: [toLocationId], references: [id])
+  createdBy      User                @relation("CreatedBy", fields: [createdById], references: [id])
+  validatedBy    User?               @relation("ValidatedBy", fields: [validatedById], references: [id])
+  lines          OperationLine[]
+  stockMoves     StockMove[]
+  timeline       OperationTimeline[]
+}
+
+model OperationLine {
+  id             String      @id @default(uuid())
+  operationId    String
+  productId      String
+  locationId     String?
+  expectedQty    Float
+  doneQty        Float       @default(0)
+  lotNumber      String?
+  reason         String?
+  notes          String?
+  systemQty      Float?
+  physicalQty    Float?
+  difference     Float?
+
+  operation      Operation   @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  product        Product     @relation(fields: [productId], references: [id])
+  location       Location?   @relation(fields: [locationId], references: [id])
+}
+
+model StockMove {
+  id             String             @id @default(uuid())
+  operationId    String?
+  productId      String
+  fromLocationId String?
+  toLocationId   String?
+  qty            Float
+  direction      StockMoveDirection
+  movedById      String
+  movedAt        DateTime           @default(now())
+  notes          String?
+
+  operation      Operation?         @relation(fields: [operationId], references: [id])
+  product        Product            @relation(fields: [productId], references: [id])
+  fromLocation   Location?          @relation("FromLocation", fields: [fromLocationId], references: [id])
+  toLocation     Location?          @relation("ToLocation", fields: [toLocationId], references: [id])
+  movedBy        User               @relation(fields: [movedById], references: [id])
+}
+
+model OperationTimeline {
+  id             String      @id @default(uuid())
+  operationId    String
+  actorId        String
+  action         String
+  fromStatus     String?
+  toStatus       String?
+  createdAt      DateTime    @default(now())
+
+  operation      Operation   @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  actor          User        @relation(fields: [actorId], references: [id])
+}

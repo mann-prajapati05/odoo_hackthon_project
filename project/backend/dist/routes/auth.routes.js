@@ -1,0 +1,16 @@
+import { Router } from "express";
+import { authController } from "../controllers/auth.controller.js";
+import { authenticate } from "../middleware/authenticate.js";
+import { authLimiter, refreshLimiter } from "../middleware/rateLimiter.js";
+import { validate } from "../middleware/validate.js";
+import { forgotPasswordSchema, loginSchema, resetPasswordSchema, signupSchema, verifySignupOtpSchema, verifyOtpSchema, } from "../validators/auth.validators.js";
+const router = Router();
+router.post("/signup", authLimiter, validate(signupSchema, "body"), authController.signup);
+router.post("/signup/verify-otp", authLimiter, validate(verifySignupOtpSchema, "body"), authController.verifySignupOtp);
+router.post("/login", authLimiter, validate(loginSchema, "body"), authController.login);
+router.post("/refresh", refreshLimiter, authController.refresh);
+router.post("/logout", authenticate, authController.logout);
+router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema, "body"), authController.forgotPassword);
+router.post("/verify-otp", authLimiter, validate(verifyOtpSchema, "body"), authController.verifyOtp);
+router.post("/reset-password", authLimiter, validate(resetPasswordSchema, "body"), authController.resetPassword);
+export default router;

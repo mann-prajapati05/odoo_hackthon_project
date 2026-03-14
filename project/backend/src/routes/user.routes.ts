@@ -1,0 +1,15 @@
+import { Router } from "express";
+import { z } from "zod";
+
+import { userController } from "../controllers/user.controller.js";
+import { validate } from "../middleware/validate.js";
+import { updatePasswordSchema } from "../validators/auth.validators.js";
+
+const router = Router();
+
+router.get("/me", userController.me);
+router.put("/me", validate(z.object({ name: z.string().min(2) }), "body"), userController.updateMe);
+router.put("/me/password", validate(updatePasswordSchema, "body"), userController.updatePassword);
+router.get("/me/stats", userController.stats);
+
+export default router;

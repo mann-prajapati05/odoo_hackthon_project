@@ -21,7 +21,7 @@ const steps = [
 export default function ForgotPassword() {
   const [currentStep, setCurrentStep] = useState(0)
   const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState('')
+  const [resetToken, setResetToken] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -105,8 +105,8 @@ export default function ForgotPassword() {
     setError('')
     setLoading(true)
     try {
-      await authApi.verifyOtp(email, otpCode)
-      setOtp(otpCode)
+      const response = await authApi.verifyOtp(email, otpCode)
+      setResetToken(response.resetToken)
       setCurrentStep(2)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid OTP')
@@ -119,7 +119,7 @@ export default function ForgotPassword() {
     setError('')
     setLoading(true)
     try {
-      await authApi.resetPassword(email, otp, data.password)
+      await authApi.resetPassword(resetToken, data.password, data.confirmPassword)
       setSuccess(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to reset password')

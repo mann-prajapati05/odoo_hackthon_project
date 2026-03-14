@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store'
 
-const API_URL = import.meta.env.VITE_API_URL || '/api'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1'
 
 export const axiosInstance = axios.create({
   baseURL: API_URL,
@@ -16,6 +16,8 @@ const refreshInstance = axios.create({
   baseURL: API_URL,
   withCredentials: true,
 })
+
+export const authTransport = refreshInstance
 
 // Request interceptor — attach JWT
 axiosInstance.interceptors.request.use(
@@ -51,8 +53,10 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+    const requestUrl = String(originalRequest?.url || '')
+    const isAuthEndpoint = requestUrl.startsWith('/auth/')
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
@@ -70,7 +74,7 @@ axiosInstance.interceptors.response.use(
       try {
         const { data } = await refreshInstance.post('/auth/refresh')
         const { accessToken } = data
-        useAuthStore.getState().setAuth(accessToken, data.user)
+        useAuthStore.getState().setAccessToken(accessToken)
         processQueue(null, accessToken)
         originalRequest.headers.Authorization = `Bearer ${accessToken}`
         return axiosInstance(originalRequest)
