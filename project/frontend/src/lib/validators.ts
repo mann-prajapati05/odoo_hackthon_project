@@ -21,6 +21,10 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email'),
 })
 
+export const otpSchema = z.object({
+  otp: z.string().regex(/^\d{6}$/, 'OTP must be a 6-digit code'),
+})
+
 export const resetPasswordSchema = z
   .object({
     password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -84,6 +88,7 @@ export const changePasswordSchema = z
 export type LoginFormData = z.infer<typeof loginSchema>
 export type SignupFormData = z.infer<typeof signupSchema>
 export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>
+export type OtpFormData = z.infer<typeof otpSchema>
 export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>
 export type ProductFormData = z.infer<typeof productSchema>
 export type OperationFormData = z.infer<typeof operationSchema>

@@ -7,6 +7,16 @@ export const authApi = {
     return data
   },
 
+  requestSignupOtp: async (name: string, email: string, password: string) => {
+    const { data } = await axiosInstance.post('/auth/signup/request-otp', { name, email, password })
+    return data
+  },
+
+  verifySignupOtp: async (email: string, otp: string): Promise<AuthResponse> => {
+    const { data } = await axiosInstance.post('/auth/signup/verify-otp', { email, otp })
+    return data
+  },
+
   signup: async (name: string, email: string, password: string): Promise<AuthResponse> => {
     const { data } = await axiosInstance.post('/auth/signup', { name, email, password })
     return data

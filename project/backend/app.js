@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import authRouter from "./routes/auth.js";
 
 const app = express();
 
@@ -20,6 +21,8 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
     res.status(200).json({ status: "ok" });
 });
+
+app.use("/api/auth", authRouter);
 
 app.use((err, req, res, next) => {
     console.error(err);

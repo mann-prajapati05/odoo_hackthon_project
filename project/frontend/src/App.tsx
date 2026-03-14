@@ -44,7 +44,11 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
 // ⚠️ DEMO MODE — Remove this component once you connect the real backend
 function DemoAuthInitializer() {
   const { isAuthenticated, setAuth } = useAuthStore()
+  const demoAuthEnabled = import.meta.env.VITE_DEMO_AUTH === 'true'
+
   useEffect(() => {
+    if (!demoAuthEnabled) return
+
     if (!isAuthenticated) {
       setAuth('demo-token', {
         id: 'demo-1',
@@ -54,7 +58,7 @@ function DemoAuthInitializer() {
         createdAt: new Date().toISOString(),
       })
     }
-  }, [isAuthenticated, setAuth])
+  }, [demoAuthEnabled, isAuthenticated, setAuth])
   return null
 }
 
