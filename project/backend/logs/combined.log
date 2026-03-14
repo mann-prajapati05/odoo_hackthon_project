@@ -211,3 +211,5 @@
 {"level":"info","message":"Server listening on port 4000","timestamp":"2026-03-14T11:12:21.259Z"}
 {"context":"signup","email":"mannprajapati0284@gmail.com","error":"Resend API failed (403): {\"statusCode\":403,\"name\":\"validation_error\",\"message\":\"You can only send testing emails to your own email address (prajapativivek93165@gmail.com). To send emails to other recipients, please verify a domain at resend.com/domains, and change the `from` address to an email using this domain.\"}","level":"warn","message":"Resend delivery failed; falling back to SMTP if configured","timestamp":"2026-03-14T11:12:58.813Z"}
 {"level":"info","message":"Server listening on port 4000","timestamp":"2026-03-14T11:22:42.762Z"}
+{"level":"info","message":"Server listening on port 4000","timestamp":"2026-03-14T11:23:29.342Z"}
+{"level":"info","message":"Server listening on port 4000","timestamp":"2026-03-14T11:23:42.930Z"}
