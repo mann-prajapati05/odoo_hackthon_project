@@ -28,6 +28,16 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email").transform((value) => value.toLowerCase()),
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email").transform((value) => value.toLowerCase()),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be a 6-digit code"),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
 const mapUserRole = (dbRole) => {
   if (dbRole === "inventory_manager") return "manager";
   if (dbRole === "warehouse_staff") return "staff";
@@ -214,6 +224,134 @@ router.post("/login", async (req, res, next) => {
       accessToken,
       user: buildUserPayload(user),
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/forgot-password", async (req, res, next) => {
+  try {
+    const body = validateBody(forgotPasswordSchema, req, res);
+    if (!body) return;
+
+    if (!resend) {
+      return res.status(500).json({ message: "Resend is not configured on server" });
+    }
+
+    const { email } = body;
+
+    const userResult = await query("SELECT id FROM users WHERE email = $1", [email]);
+    if (!userResult.rows.length) {
+      return res.status(200).json({ message: "If your email is registered, OTP has been sent." });
+    }
+
+    const otp = generateOtp();
+    const otpHash = getOtpHash(email, otp);
+    const otpExpiryMinutes = Number(process.env.PASSWORD_RESET_OTP_EXPIRY_MINUTES || 10);
+
+    await query(
+      `
+      INSERT INTO password_reset_otps (email, otp_hash, expires_at, updated_at)
+      VALUES ($1, $2, NOW() + ($3 || ' minutes')::interval, NOW())
+      ON CONFLICT (email)
+      DO UPDATE SET
+        otp_hash = EXCLUDED.otp_hash,
+        expires_at = EXCLUDED.expires_at,
+        updated_at = NOW()
+      `,
+      [email, otpHash, otpExpiryMinutes]
+    );
+
+    await resend.emails.send({
+      from: resendFrom,
+      to: email,
+      subject: "Your password reset OTP code",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+          <h2>Reset your password</h2>
+          <p>Use this OTP to continue password reset:</p>
+          <p style="font-size: 24px; font-weight: bold; letter-spacing: 4px;">${otp}</p>
+          <p>This code expires in ${otpExpiryMinutes} minutes.</p>
+        </div>
+      `,
+    });
+
+    return res.status(200).json({ message: "OTP sent to your email" });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/verify-otp", async (req, res, next) => {
+  try {
+    const body = validateBody(otpVerifySchema, req, res);
+    if (!body) return;
+
+    const { email, otp } = body;
+
+    const otpResult = await query(
+      "SELECT otp_hash, expires_at FROM password_reset_otps WHERE email = $1",
+      [email]
+    );
+
+    if (!otpResult.rows.length) {
+      return res.status(400).json({ message: "No OTP request found for this email" });
+    }
+
+    const otpRecord = otpResult.rows[0];
+    if (new Date(otpRecord.expires_at).getTime() < Date.now()) {
+      await query("DELETE FROM password_reset_otps WHERE email = $1", [email]);
+      return res.status(400).json({ message: "OTP has expired. Please request a new one." });
+    }
+
+    const otpHash = getOtpHash(email, otp);
+    if (otpHash !== otpRecord.otp_hash) {
+      return res.status(400).json({ message: "Invalid OTP code" });
+    }
+
+    return res.status(200).json({ message: "OTP verified successfully" });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/reset-password", async (req, res, next) => {
+  try {
+    const body = validateBody(resetPasswordSchema, req, res);
+    if (!body) return;
+
+    const { email, otp, newPassword } = body;
+
+    const otpResult = await query(
+      "SELECT otp_hash, expires_at FROM password_reset_otps WHERE email = $1",
+      [email]
+    );
+
+    if (!otpResult.rows.length) {
+      return res.status(400).json({ message: "No OTP request found for this email" });
+    }
+
+    const otpRecord = otpResult.rows[0];
+    if (new Date(otpRecord.expires_at).getTime() < Date.now()) {
+      await query("DELETE FROM password_reset_otps WHERE email = $1", [email]);
+      return res.status(400).json({ message: "OTP has expired. Please request a new one." });
+    }
+
+    const otpHash = getOtpHash(email, otp);
+    if (otpHash !== otpRecord.otp_hash) {
+      return res.status(400).json({ message: "Invalid OTP code" });
+    }
+
+    const userResult = await query("SELECT id FROM users WHERE email = $1", [email]);
+    if (!userResult.rows.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await query("UPDATE users SET password_hash = $1 WHERE email = $2", [passwordHash, email]);
+    await query("DELETE FROM password_reset_otps WHERE email = $1", [email]);
+
+    return res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
     return next(error);
   }
