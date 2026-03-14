@@ -62,10 +62,13 @@ const isSmtpConfigured = (): boolean => {
 const sendOtpEmail = async (email: string, otp: string, context: "signup" | "reset"): Promise<void> => {
   const resendApiKey = process.env.RESEND_API_KEY;
   const resendFrom = process.env.RESEND_FROM_EMAIL;
+  const resendTestToEmail = process.env.RESEND_TEST_TO_EMAIL?.trim().toLowerCase();
   const smtpFrom = process.env.SMTP_FROM;
 
   const subject = context === "signup" ? "Your signup OTP" : "Your password reset OTP";
-  const html = `<div style=\"font-family:Arial,sans-serif\"><h2>Your OTP: ${otp}</h2><p>This OTP expires in 10 minutes.</p><p>If you did not request this, you can safely ignore this email.</p></div>`;
+  const isDevResendOverride = process.env.NODE_ENV !== "production" && Boolean(resendTestToEmail);
+  const recipient = isDevResendOverride ? (resendTestToEmail as string) : email;
+  const html = `<div style=\"font-family:Arial,sans-serif\"><h2>Your OTP: ${otp}</h2><p>This OTP expires in 10 minutes.</p>${isDevResendOverride ? `<p><b>Dev note:</b> This OTP is intended for <code>${email}</code> and was routed to <code>${recipient}</code> via RESEND_TEST_TO_EMAIL.</p>` : ""}<p>If you did not request this, you can safely ignore this email.</p></div>`;
 
   let resendErrorMessage: string | null = null;
 
@@ -79,7 +82,7 @@ const sendOtpEmail = async (email: string, otp: string, context: "signup" | "res
         },
         body: JSON.stringify({
           from: resendFrom,
-          to: email,
+          to: recipient,
           subject,
           html,
         }),
@@ -95,6 +98,7 @@ const sendOtpEmail = async (email: string, otp: string, context: "signup" | "res
       resendErrorMessage = error instanceof Error ? error.message : String(error);
       logger.warn("Resend delivery failed; falling back to SMTP if configured", {
         email,
+        recipient,
         context,
         error: resendErrorMessage,
       });
